@@ -22,6 +22,13 @@
   const $intro = document.getElementById("intro");
   const $start = document.getElementById("start");
   const $sound = document.getElementById("sound");
+  const $health = document.getElementById("health");
+  const $pips = Array.from($health.querySelectorAll(".pip"));
+  const $over = document.getElementById("over");
+  const $overText = document.getElementById("over-text");
+  const $overDay = document.getElementById("over-day");
+  const $overTotal = document.getElementById("over-total");
+  const $retry = document.getElementById("retry");
 
   // ---------- Helpers ----------
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -148,15 +155,18 @@
   }
 
   // ---------- State ----------
+  const MAX_DAMAGE = 3;
+
   const state = {
-    phase: "intro", // intro | collecting | mowing | done
+    phase: "intro", // intro | collecting | mowing | done | gameover
     day: 1,
     collectedTotal: 0,
+    damage: 0, // koľko šišiek kosačka rozdrvila (3 = koniec)
     cones: [],
     particles: [],
     clouds: [],
     motes: [],
-    mower: { x: 0, y: 0, dir: 1, wheel: 0, blink: 0, bob: 0 },
+    mower: { x: 0, y: 0, vx: 0, vy: 0, face: 1, dir: 1, wheel: 0, blink: 0, bob: 0, shake: 0, cooldown: 0 },
     mowed: 0,
     wind: 0,
     windTarget: 0,
@@ -204,6 +214,13 @@
       cone.y0 = cone.py;
       state.cones.push(cone);
     }
+    // kosačka začína deň doma a vyrazí loviť šišky
+    state.mower.x = layout.home.x;
+    state.mower.y = layout.home.y;
+    state.mower.vx = 0;
+    state.mower.vy = 0;
+    // ranná pauza: kosačka chvíľu postojí (kým šišky dopadnú a hráč začne)
+    state.mower.cooldown = Math.max(1.2, 2.6 - (day - 1) * 0.2);
     updateHud();
   }
 
@@ -216,6 +233,7 @@
     $day.textContent = "Deň " + state.day;
     const rem = remainingCones();
     $remaining.textContent = rem > 0 ? rem + " spod stromu" : "trávnik je čistý";
+    $pips.forEach((pip, i) => pip.classList.toggle("lost", i < state.damage));
   }
 
   // ---------- Collecting ----------
@@ -231,6 +249,58 @@
     playPop();
     updateHud();
     return true;
+  }
+
+  // kosačka prešla cez šišku – rozdrví ju a poškodí sa
+  function crushCone(cone) {
+    if (cone.state === "flying" || cone.state === "gone" || cone.state === "crush") return;
+    cone.state = "crush";
+    cone.crushT = 0;
+    crushBurst(cone.px, cone.py, cone.r);
+    state.damage += 1;
+    state.mower.shake = 0.5;
+    state.mower.cooldown = 1.0; // chvíľa pauzy – dáva hráčovi šancu zareagovať
+    playThunk();
+    flashHealth();
+    updateHud();
+    if (state.damage >= MAX_DAMAGE) {
+      gameOver();
+    }
+  }
+
+  function flashHealth() {
+    $health.classList.remove("hit");
+    void $health.offsetWidth;
+    $health.classList.add("hit");
+  }
+
+  function crushBurst(x, y, r) {
+    for (let i = 0; i < 12; i++) {
+      const a = rand(0, Math.PI * 2);
+      const sp = rand(60, 200);
+      const needle = Math.random() < 0.45;
+      state.particles.push({
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: -Math.abs(Math.sin(a)) * sp - rand(20, 70),
+        life: 0,
+        maxLife: rand(0.4, 0.9),
+        size: needle ? rand(7, 13) : rand(3, 6),
+        rot: rand(0, Math.PI),
+        vr: rand(-10, 10),
+        color: needle ? "#4f8f3e" : (Math.random() < 0.5 ? "#5e3a1f" : "#a06a38"),
+        shape: needle ? "needle" : "fleck",
+        grav: 360,
+      });
+    }
+  }
+
+  function gameOver() {
+    state.phase = "gameover";
+    $overDay.textContent = state.day;
+    $overTotal.textContent = state.collectedTotal;
+    $over.classList.add("show");
+    playBreak();
   }
 
   function burst(x, y, r) {
@@ -304,7 +374,7 @@
       "Pokosené! 🌿",
       "Kosačka jazdí! ✨",
       "Trávnik ako zamat 🌱",
-      "Kmotor by bol hrdý 👏",
+      "Vladimír by bol hrdý 👏",
     ];
     return opts[(Math.random() * opts.length) | 0];
   }
@@ -367,6 +437,9 @@
           updateHud();
           checkCleared();
         }
+      } else if (c.state === "crush") {
+        c.crushT += dt;
+        if (c.crushT >= 0.32) c.state = "gone";
       }
     }
 
@@ -392,19 +465,33 @@
     }
   }
 
+  function mowerSize() {
+    return clamp(Math.min(W, H) / 720, 0.66, 1.15);
+  }
+
+  function nearestCone(x, y) {
+    let best = null, bestD = Infinity;
+    for (const c of state.cones) {
+      if (c.state !== "idle" && c.state !== "drop") continue;
+      const d = (c.px - x) ** 2 + (c.py - y) ** 2;
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    return best;
+  }
+
   function updateMower(dt) {
     const m = state.mower;
-    m.wheel += dt * (state.phase === "mowing" ? 14 : 0);
+    if (m.shake > 0) m.shake = Math.max(0, m.shake - dt);
     m.blink -= dt;
     if (m.blink < 0) m.blink = rand(2, 5);
 
     if (state.phase === "mowing") {
-      const speed = (layout.lawn.w + 160) / 3.4; // px/s -> ~3.4s pass
+      const speed = (layout.lawn.w + 160) / 3.4; // px/s -> ~3.4s prejazd
       m.x += speed * dt;
-      // gentle vertical sway while mowing
+      m.face = 1;
+      m.wheel += dt * 14;
       m.y = layout.home.y + Math.sin(state.time * 3) * 8;
-      state.mowed = clamp((m.x) / (layout.lawn.w * 0.99), 0, 1);
-      // grass clippings behind
+      state.mowed = clamp(m.x / (layout.lawn.w * 0.99), 0, 1);
       if (Math.random() < 0.6) {
         state.particles.push({
           x: m.x - 30, y: m.y + 8,
@@ -416,10 +503,51 @@
         });
       }
       if (m.x > layout.lawn.w + 80) finishDay();
-    } else {
-      m.bob = Math.sin(state.time * 2) * 3;
+      return;
+    }
+
+    if (state.phase === "collecting") {
+      // po rozdrvení šišky chvíľu postojí (a trasie sa)
+      if (m.cooldown > 0) {
+        m.cooldown -= dt;
+        return;
+      }
+      // pomaly sa plíži k najbližšej šiške a hrozí, že ju rozdrví
+      const speed = Math.min(30 + (state.day - 1) * 7, 100);
+      const target = nearestCone(m.x, m.y);
+      if (target) {
+        const dx = target.px - m.x;
+        const dy = target.py - m.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        m.vx = (dx / dist) * speed;
+        m.vy = (dy / dist) * speed;
+        m.x += m.vx * dt;
+        m.y += m.vy * dt + Math.sin(state.time * 6) * 0.6;
+        if (Math.abs(m.vx) > 4) m.face = m.vx > 0 ? 1 : -1;
+        m.wheel += dt * (speed * 0.14);
+
+        const reach = 64 * mowerSize();
+        if (dist < reach) crushCone(target);
+      }
+      return;
+    }
+
+    // intro / done / gameover – kosačka stojí (alebo dymí) doma
+    m.bob = Math.sin(state.time * 2) * 3;
+    if (state.phase === "intro") {
       m.x = layout.home.x;
       m.y = layout.home.y + m.bob;
+    }
+    if (state.phase === "gameover" && Math.random() < 0.5) {
+      // unikajúci dym z pokazenej kosačky
+      state.particles.push({
+        x: m.x + rand(-10, 10), y: m.y - 24,
+        vx: rand(-12, 12), vy: rand(-50, -20),
+        life: 0, maxLife: rand(0.7, 1.3),
+        size: rand(8, 16), rot: 0, vr: 0,
+        color: Math.random() < 0.5 ? "#6b6b6b" : "#9a9a9a",
+        shape: "fleck", grav: -20,
+      });
     }
   }
 
@@ -469,7 +597,7 @@
     drawTree(layout.tree, 1);
 
     // cones sorted by depth (painter)
-    const drawable = state.cones.filter((c) => c.state === "idle" || c.state === "drop");
+    const drawable = state.cones.filter((c) => c.state === "idle" || c.state === "drop" || c.state === "crush");
     drawable.sort((a, b) => a.py - b.py);
     for (const c of drawable) drawCone(c);
 
@@ -660,55 +788,81 @@
     if (fly) {
       ctx.globalAlpha = clamp(1 - c.flyT / c.flyDur * 0.2, 0.5, 1);
     }
+    if (c.state === "crush") {
+      const ct = clamp(c.crushT / 0.32, 0, 1);
+      ctx.translate(0, h * 0.42 * ct);
+      ctx.scale(1 + ct * 0.55, 1 - ct * 0.85);
+      ctx.globalAlpha = 1 - ct;
+    }
     ctx.drawImage(coneSprite, -w / 2, -h / 2, w, h);
     ctx.restore();
   }
 
   function drawMower() {
     const m = state.mower;
-    const scale = clamp(Math.min(W, H) / 720, 0.66, 1.15);
+    const scale = mowerSize();
     const bw = 92 * scale, bh = 56 * scale;
-    const x = m.x, y = m.y;
+    const broken = state.phase === "gameover";
 
+    // shadow stays flat on the ground
     ctx.save();
-    // shadow
     ctx.globalAlpha = 0.2;
     ctx.fillStyle = "#1f3a18";
     ctx.beginPath();
-    ctx.ellipse(x, y + bh * 0.6, bw * 0.6, bh * 0.22, 0, 0, Math.PI * 2);
+    ctx.ellipse(m.x, m.y + bh * 0.6, bw * 0.6, bh * 0.22, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    ctx.save();
+    const shx = m.shake > 0 ? Math.sin(state.time * 60) * 4 * m.shake : 0;
+    ctx.translate(m.x + shx, m.y);
+    if (broken) ctx.rotate(0.16);
+    ctx.scale(m.face, 1);
+
+    const bodyTop = broken ? "#cfd6d2" : "#7fe0c2";
+    const bodyBot = broken ? "#9aa6a0" : "#3fae8e";
 
     // wheels
     ctx.fillStyle = "#2c3530";
-    roundRect(x - bw * 0.42, y + bh * 0.18, bw * 0.22, bh * 0.34, 6 * scale);
+    roundRect(-bw * 0.42, bh * 0.18, bw * 0.22, bh * 0.34, 6 * scale);
     ctx.fill();
-    roundRect(x + bw * 0.2, y + bh * 0.18, bw * 0.22, bh * 0.34, 6 * scale);
+    roundRect(bw * 0.2, bh * 0.18, bw * 0.22, bh * 0.34, 6 * scale);
     ctx.fill();
 
     // body
-    const g = ctx.createLinearGradient(0, y - bh * 0.5, 0, y + bh * 0.5);
-    g.addColorStop(0, "#7fe0c2");
-    g.addColorStop(1, "#3fae8e");
+    const g = ctx.createLinearGradient(0, -bh * 0.5, 0, bh * 0.5);
+    g.addColorStop(0, bodyTop);
+    g.addColorStop(1, bodyBot);
     ctx.fillStyle = g;
-    roundRect(x - bw / 2, y - bh / 2, bw, bh, 16 * scale);
+    roundRect(-bw / 2, -bh / 2, bw, bh, 16 * scale);
     ctx.fill();
 
     // top dome
-    ctx.fillStyle = "#9defcf";
-    roundRect(x - bw * 0.32, y - bh * 0.62, bw * 0.64, bh * 0.4, 12 * scale);
+    ctx.fillStyle = broken ? "#e6ebe7" : "#9defcf";
+    roundRect(-bw * 0.32, -bh * 0.62, bw * 0.64, bh * 0.4, 12 * scale);
     ctx.fill();
 
     // visor / eyes
     ctx.fillStyle = "#1d2b28";
-    roundRect(x - bw * 0.26, y - bh * 0.16, bw * 0.52, bh * 0.32, 9 * scale);
+    roundRect(-bw * 0.26, -bh * 0.16, bw * 0.52, bh * 0.32, 9 * scale);
     ctx.fill();
-    const blinkOpen = m.blink > 0.12;
-    ctx.fillStyle = blinkOpen ? "#aef7ff" : "#1d2b28";
-    if (blinkOpen) {
+    const blinkOpen = m.blink > 0.12 && !broken;
+    if (broken) {
+      // X_X
+      ctx.strokeStyle = "#e8743b";
+      ctx.lineWidth = 2.4 * scale;
+      const ex = bw * 0.1, ey = 0, s = 4 * scale;
+      for (const cx of [-ex, ex]) {
+        ctx.beginPath();
+        ctx.moveTo(cx - s, ey - s); ctx.lineTo(cx + s, ey + s);
+        ctx.moveTo(cx + s, ey - s); ctx.lineTo(cx - s, ey + s);
+        ctx.stroke();
+      }
+    } else if (blinkOpen) {
+      ctx.fillStyle = "#aef7ff";
       ctx.beginPath();
-      ctx.arc(x - bw * 0.1, y, 4.5 * scale, 0, Math.PI * 2);
-      ctx.arc(x + bw * 0.1, y, 4.5 * scale, 0, Math.PI * 2);
+      ctx.arc(-bw * 0.1, 0, 4.5 * scale, 0, Math.PI * 2);
+      ctx.arc(bw * 0.1, 0, 4.5 * scale, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -716,12 +870,12 @@
     ctx.strokeStyle = "#2c3530";
     ctx.lineWidth = 2.4 * scale;
     ctx.beginPath();
-    ctx.moveTo(x + bw * 0.34, y - bh * 0.42);
-    ctx.lineTo(x + bw * 0.42, y - bh * 0.82);
+    ctx.moveTo(bw * 0.34, -bh * 0.42);
+    ctx.lineTo(bw * 0.42, -bh * 0.82);
     ctx.stroke();
     ctx.fillStyle = "#e8743b";
     ctx.beginPath();
-    ctx.arc(x + bw * 0.42, y - bh * 0.86, 4 * scale, 0, Math.PI * 2);
+    ctx.arc(bw * 0.42, -bh * 0.86, 4 * scale, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -803,7 +957,7 @@
   }
 
   function onDown(e) {
-    if (state.phase === "intro") return;
+    if (state.phase !== "collecting") return;
     pointerDown = true;
     collectedThisGesture = false;
     movedDist = 0;
@@ -879,6 +1033,42 @@
     o.stop(now + 0.2);
   }
 
+  function playThunk() {
+    if (!soundOn || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "square";
+    o.frequency.setValueAtTime(180, now);
+    o.frequency.exponentialRampToValueAtTime(70, now + 0.16);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.22, now + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(now);
+    o.stop(now + 0.24);
+  }
+
+  function playBreak() {
+    if (!soundOn || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    const notes = [392, 311, 261, 196];
+    notes.forEach((f, i) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = "sawtooth";
+      const t = now + i * 0.13;
+      o.frequency.setValueAtTime(f, t);
+      o.frequency.exponentialRampToValueAtTime(f * 0.8, t + 0.18);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.14, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(t);
+      o.stop(t + 0.32);
+    });
+  }
+
   function playJingle() {
     if (!soundOn || !audioCtx) return;
     const now = audioCtx.currentTime;
@@ -937,12 +1127,29 @@
     state.started = true;
     ensureAudio();
     $intro.classList.add("hide");
-    state.phase = "collecting";
+    resetRun();
+  }
+
+  function resetRun() {
     state.day = 1;
+    state.collectedTotal = 0;
+    state.damage = 0;
+    state.particles.length = 0;
+    state.mower.shake = 0;
+    state.mower.cooldown = 0;
+    state.mower.face = 1;
+    state.phase = "collecting";
     spawnDay(1);
   }
 
+  function restartGame() {
+    $over.classList.remove("show");
+    ensureAudio();
+    resetRun();
+  }
+
   $start.addEventListener("click", startGame);
+  $retry.addEventListener("click", restartGame);
 
   // ---------- Boot ----------
   window.addEventListener("resize", () => {

@@ -2,7 +2,7 @@
 
 Pokojná záhradná webová simulácia. Pod ihličnatým stromom je samá šiška a
 robotická kosačka sa kvôli nim nepohne. Pozbieraj všetky šišky – a pusti
-kosačku, nech pokosí trávnik. Kmotrov každodenný rituál v prehliadači.
+kosačku, nech pokosí trávnik. Vladimírov každodenný rituál v prehliadači.
 
 Inšpirované [screen.toys/firewood](https://screen.toys/firewood/), ale namiesto
 sekania dreva tu **zbieraš šišky zo záhrady**.
@@ -10,8 +10,11 @@ sekania dreva tu **zbieraš šišky zo záhrady**.
 ## Ako sa hrá
 
 - **Klikni** na šišku alebo **prejdi prstom / ťahaj myšou** po šiškách a pozbieraj ich.
-- Keď je trávnik čistý, robotická kosačka sa rozbehne a pokosí ho.
-- Začne nový deň – spod stromu napadá ďalšia dávka šišiek. 🌿
+- Pozor: robotická kosačka sa **pomaly plíži po trávniku** a snaží sa k šiškám dostať skôr ako ty.
+- Keď kosačka prejde cez šišku, **rozdrví ju a poškodí sa**. Po **troch** rozdrvených šiškách sa
+  pokazí a je **koniec hry**. Stav kosačky vidíš ako tri bodky v HUD-e.
+- Stihni pozbierať všetky šišky, kým je trávnik čistý – vtedy sa kosačka rozbehne a pokosí ho.
+- Začne nový deň – spod stromu napadá ďalšia (väčšia) dávka šišiek a kosačka je rýchlejšia. 🌿
 
 ## Vlastnosti
 
