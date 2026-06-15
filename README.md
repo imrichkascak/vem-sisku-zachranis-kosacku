@@ -9,6 +9,10 @@ sekania dreva tu **zbieraš šišky zo záhrady**.
 
 ## Ako sa hrá
 
+- Pred štartom si vyber **úroveň obtiažnosti**, ktorá určuje, ako rýchlo sa kosačka plíži za šiškami:
+  1. **Začiatočník** – kosačka sa sotva vlečie,
+  2. **Pokročilý** – kosačka si to mieri rovno k šiškám,
+  3. **Expert (Vladimír)** – kosačka loví ako o život.
 - **Klikni** na šišku alebo **prejdi prstom / ťahaj myšou** po šiškách a pozbieraj ich.
 - Pozor: robotická kosačka sa **pomaly plíži po trávniku** a snaží sa k šiškám dostať skôr ako ty.
 - Keď kosačka prejde cez šišku, **rozdrví ju a poškodí sa**. Po **troch** rozdrvených šiškách sa

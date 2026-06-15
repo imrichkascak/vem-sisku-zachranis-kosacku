@@ -29,6 +29,17 @@
   const $overDay = document.getElementById("over-day");
   const $overTotal = document.getElementById("over-total");
   const $retry = document.getElementById("retry");
+  const $levels = document.getElementById("levels");
+  const $levelBtns = $levels ? Array.from($levels.querySelectorAll(".level")) : [];
+
+  // ---------- Difficulty ----------
+  // speed = násobič rýchlosti lovenia kosačky, grace = ranná pauza navyše (s)
+  const DIFFICULTIES = {
+    beginner: { id: "beginner", label: "Začiatočník", speed: 0.6, grace: 1.2 },
+    advanced: { id: "advanced", label: "Pokročilý", speed: 1.0, grace: 0 },
+    expert: { id: "expert", label: "Expert (Vladimír)", speed: 1.55, grace: -0.6 },
+  };
+  const DEFAULT_DIFFICULTY = "advanced";
 
   // ---------- Helpers ----------
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -177,7 +188,20 @@
     windTarget: 0,
     time: 0,
     started: false,
+    difficulty: DEFAULT_DIFFICULTY,
   };
+
+  const currentDiff = () => DIFFICULTIES[state.difficulty] || DIFFICULTIES[DEFAULT_DIFFICULTY];
+
+  function selectDifficulty(id) {
+    if (!DIFFICULTIES[id]) return;
+    state.difficulty = id;
+    for (const btn of $levelBtns) {
+      const active = btn.dataset.level === id;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-checked", active ? "true" : "false");
+    }
+  }
 
   function coneScale(ny) {
     return lerp(0.5, 1.12, clamp(ny, 0, 1));
@@ -225,7 +249,7 @@
     state.mower.vx = 0;
     state.mower.vy = 0;
     // ranná pauza: kosačka chvíľu postojí (kým šišky dopadnú a hráč začne)
-    state.mower.cooldown = Math.max(1.2, 2.6 - (day - 1) * 0.2);
+    state.mower.cooldown = Math.max(0.8, 2.6 + currentDiff().grace - (day - 1) * 0.2);
     updateHud();
   }
 
@@ -519,7 +543,7 @@
         return;
       }
       // pomaly sa plíži k najbližšej šiške a hrozí, že ju rozdrví
-      const speed = Math.min(30 + (state.day - 1) * 7, 100);
+      const speed = Math.min(30 + (state.day - 1) * 7, 100) * currentDiff().speed;
       const target = nearestCone(m.x, m.y);
       if (target) {
         const dx = target.px - m.x;
@@ -1514,6 +1538,9 @@
     ensureAudio();
     $intro.classList.add("hide");
     resetRun();
+    showToast("Úroveň: " + currentDiff().label);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 2200);
   }
 
   function resetRun() {
@@ -1536,6 +1563,10 @@
 
   $start.addEventListener("click", startGame);
   $retry.addEventListener("click", restartGame);
+  for (const btn of $levelBtns) {
+    btn.addEventListener("click", () => selectDifficulty(btn.dataset.level));
+  }
+  selectDifficulty(state.difficulty);
 
   // ---------- Boot ----------
   window.addEventListener("resize", () => {
