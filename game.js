@@ -1,7 +1,7 @@
 /*
- * Vem šišku, zachrániš kosačku
+ * Vem šišku, zachrániš sekačku
  * Pokojná záhradná simulácia – pozbieraj šišky spod ihličnatého stromu,
- * aby robotická kosačka mohla pokosiť trávnik.
+ * aby robotická sekačka mohla pokosiť trávnik.
  *
  * Čistá HTML5 canvas implementácia, bez závislostí.
  */
@@ -33,7 +33,7 @@
   const $levelBtns = $levels ? Array.from($levels.querySelectorAll(".level")) : [];
 
   // ---------- Difficulty ----------
-  // speed = násobič rýchlosti lovenia kosačky, grace = ranná pauza navyše (s)
+  // speed = násobič rýchlosti lovenia sekačky, grace = ranná pauza navyše (s)
   const DIFFICULTIES = {
     beginner: { id: "beginner", label: "Začiatočník", speed: 0.6, grace: 1.2 },
     advanced: { id: "advanced", label: "Pokročilý", speed: 1.0, grace: 0 },
@@ -175,7 +175,7 @@
     phase: "intro", // intro | collecting | mowing | done | gameover
     day: 1,
     collectedTotal: 0,
-    damage: 0, // koľko šišiek kosačka rozdrvila (3 = koniec)
+    damage: 0, // koľko šišiek sekačka rozdrvila (3 = koniec)
     cones: [],
     particles: [],
     clouds: [],
@@ -243,12 +243,12 @@
       cone.y0 = cone.py;
       state.cones.push(cone);
     }
-    // kosačka začína deň doma a vyrazí loviť šišky
+    // sekačka začína deň doma a vyrazí loviť šišky
     state.mower.x = layout.home.x;
     state.mower.y = layout.home.y;
     state.mower.vx = 0;
     state.mower.vy = 0;
-    // ranná pauza: kosačka chvíľu postojí (kým šišky dopadnú a hráč začne)
+    // ranná pauza: sekačka chvíľu postojí (kým šišky dopadnú a hráč začne)
     state.mower.cooldown = Math.max(0.8, 2.6 + currentDiff().grace - (day - 1) * 0.2);
     updateHud();
   }
@@ -280,7 +280,7 @@
     return true;
   }
 
-  // kosačka prešla cez šišku – rozdrví ju a poškodí sa
+  // sekačka prešla cez šišku – rozdrví ju a poškodí sa
   function crushCone(cone) {
     if (cone.state === "flying" || cone.state === "gone" || cone.state === "crush") return;
     cone.state = "crush";
@@ -401,7 +401,7 @@
   function pickToast() {
     const opts = [
       "Pokosené! 🌿",
-      "Kosačka jazdí! ✨",
+      "Sekačka jazdí! ✨",
       "Trávnik ako zamat 🌱",
       "Vladimír by bol hrdý 👏",
     ];
@@ -562,14 +562,14 @@
       return;
     }
 
-    // intro / done / gameover – kosačka stojí (alebo dymí) doma
+    // intro / done / gameover – sekačka stojí (alebo dymí) doma
     m.bob = Math.sin(state.time * 2) * 3;
     if (state.phase === "intro") {
       m.x = layout.home.x;
       m.y = layout.home.y + m.bob;
     }
     if (state.phase === "gameover" && Math.random() < 0.5) {
-      // unikajúci dym z pokazenej kosačky
+      // unikajúci dym z pokazenej sekačky
       state.particles.push({
         x: m.x + rand(-10, 10), y: m.y - 24,
         vx: rand(-12, 12), vy: rand(-50, -20),

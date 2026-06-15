@@ -4,30 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#bfe3c0" />
-  <title>Vem šišku, zachrániš kosačku</title>
-  <meta name="description" content="Pokojná záhradná simulácia – pozbieraj šišky spod ihličnatého stromu, kým robotická kosačka nenarazí na tri z nich. Vladimírov každodenný rituál." />
+  <title>Vem šišku, zachrániš sekačku</title>
+  <meta name="description" content="Pokojná záhradná simulácia – pozbieraj šišky spod ihličnatého stromu, kým robotická sekačka nenarazí na tri z nich. Vladimírov každodenný rituál." />
 
-  <link rel="canonical" href="https://vem-sisku-zachranis-kosacku.vercel.app/" />
+  <link rel="canonical" href="https://vem-sisku-zachranis-sekacku.vercel.app/" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Vem šišku, zachrániš kosačku" />
+  <meta property="og:site_name" content="Vem šišku, zachrániš sekačku" />
   <meta property="og:locale" content="sk_SK" />
-  <meta property="og:url" content="https://vem-sisku-zachranis-kosacku.vercel.app/" />
-  <meta property="og:title" content="Vem šišku, zachrániš kosačku" />
-  <meta property="og:description" content="Pozbieraj šišky spod ihličnatého stromu — a zachráň robotickú kosačku. Vladimírov každodenný rituál." />
-  <meta property="og:image" content="https://vem-sisku-zachranis-kosacku.vercel.app/og-image.png" />
+  <meta property="og:url" content="https://vem-sisku-zachranis-sekacku.vercel.app/" />
+  <meta property="og:title" content="Vem šišku, zachrániš sekačku" />
+  <meta property="og:description" content="Pozbieraj šišky spod ihličnatého stromu — a zachráň robotickú sekačku. Vladimírov každodenný rituál." />
+  <meta property="og:image" content="https://vem-sisku-zachranis-sekacku.vercel.app/og-image.png" />
   <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Robotická kosačka na trávniku plnom šišiek pod ihličnatým stromom." />
+  <meta property="og:image:alt" content="Robotická sekačka na trávniku plnom šišiek pod ihličnatým stromom." />
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Vem šišku, zachrániš kosačku" />
-  <meta name="twitter:description" content="Pozbieraj šišky spod ihličnatého stromu — a zachráň robotickú kosačku." />
-  <meta name="twitter:image" content="https://vem-sisku-zachranis-kosacku.vercel.app/og-image.png" />
-  <meta name="twitter:image:alt" content="Robotická kosačka na trávniku plnom šišiek pod ihličnatým stromom." />
+  <meta name="twitter:title" content="Vem šišku, zachrániš sekačku" />
+  <meta name="twitter:description" content="Pozbieraj šišky spod ihličnatého stromu — a zachráň robotickú sekačku." />
+  <meta name="twitter:image" content="https://vem-sisku-zachranis-sekacku.vercel.app/og-image.png" />
+  <meta name="twitter:image:alt" content="Robotická sekačka na trávniku plnom šišiek pod ihličnatým stromom." />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -51,7 +51,7 @@
       <div class="meta">
         <div class="day" id="day">Deň 1</div>
         <div class="remaining" id="remaining">0 spod stromu</div>
-        <div class="health" id="health" title="Stav kosačky" aria-label="Stav kosačky">
+        <div class="health" id="health" title="Stav sekačky" aria-label="Stav sekačky">
           <span class="pip"></span><span class="pip"></span><span class="pip"></span>
         </div>
       </div>
@@ -68,11 +68,11 @@
     <div class="intro" id="intro">
       <div class="intro__card">
         <p class="intro__eyebrow">Vladimírov každodenný rituál</p>
-        <h1 class="intro__title">Vem šišku,<br /><em>zachrániš kosačku</em></h1>
+        <h1 class="intro__title">Vem šišku,<br /><em>zachrániš sekačku</em></h1>
         <p class="intro__text">
           Pod ihličnatým stromom je samá šiška. Kým ich pozbieraš,
-          robotická kosačka sa trávnika ani nedotkne. Pozbieraj ich všetky –
-          klikni alebo prejdi prstom po šiškách – a pusti kosačku do práce.
+          robotická sekačka sa trávnika ani nedotkne. Pozbieraj ich všetky –
+          klikni alebo prejdi prstom po šiškách – a pusti sekačku do práce.
         </p>
 
         <div class="levels" id="levels" role="radiogroup" aria-label="Úroveň obtiažnosti">
@@ -80,21 +80,21 @@
             <span class="level__num">1</span>
             <span class="level__body">
               <span class="level__name">Začiatočník</span>
-              <span class="level__desc">kosačka sa sotva vlečie</span>
+              <span class="level__desc">sekačka sa sotva vlečie</span>
             </span>
           </button>
           <button class="level is-active" id="level-advanced" type="button" role="radio" aria-checked="true" data-level="advanced">
             <span class="level__num">2</span>
             <span class="level__body">
               <span class="level__name">Pokročilý</span>
-              <span class="level__desc">kosačka si to mieri rovno k šiškám</span>
+              <span class="level__desc">sekačka si to mieri rovno k šiškám</span>
             </span>
           </button>
           <button class="level" id="level-expert" type="button" role="radio" aria-checked="false" data-level="expert">
             <span class="level__num">3</span>
             <span class="level__body">
               <span class="level__name">Expert <em>(Vladimír)</em></span>
-              <span class="level__desc">kosačka loví ako o život</span>
+              <span class="level__desc">sekačka loví ako o život</span>
             </span>
           </button>
         </div>
@@ -107,9 +107,9 @@
     <!-- Game over -->
     <div class="over" id="over">
       <div class="over__card">
-        <p class="over__eyebrow">pokazená kosačka</p>
+        <p class="over__eyebrow">pokazená sekačka</p>
         <h2 class="over__title">Koniec rituálu</h2>
-        <p class="over__text" id="over-text">Kosačka prešla cez tri šišky a odišla do servisu.</p>
+        <p class="over__text" id="over-text">Sekačka prešla cez tri šišky a odišla do servisu.</p>
         <div class="over__stats">
           <div><strong id="over-day">1</strong><span>deň</span></div>
           <div><strong id="over-total">0</strong><span>šišiek</span></div>

@@ -319,6 +319,7 @@ html, body {
   border-radius: 16px;
   cursor: pointer;
   font-family: inherit;
+  text-align: left;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.42);
   border: 1.5px solid rgba(120, 86, 50, 0.16);
@@ -340,7 +341,7 @@ html, body {
   background: rgba(120, 86, 50, 0.12);
   transition: background 0.2s ease, color 0.2s ease;
 }
-.level__body { display: flex; flex-direction: column; line-height: 1.25; }
+.level__body { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; line-height: 1.25; }
 .level__name { font-weight: 800; font-size: 0.98rem; }
 .level__name em { font-style: italic; font-weight: 700; color: var(--accent); }
 .level__desc { font-size: 0.76rem; font-weight: 700; color: var(--ink-soft); opacity: 0.72; }
