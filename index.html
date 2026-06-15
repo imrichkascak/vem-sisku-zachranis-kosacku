@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#bfe3c0" />
+  <title>Vem šišku, zachrániš kosačku</title>
+  <meta name="description" content="Pokojná záhradná simulácia – pozbieraj šišky spod ihličnatého stromu, aby robotická kosačka zvládla pokosiť trávnik. Kmotrov každodenný rituál." />
+
+  <meta property="og:title" content="Vem šišku, zachrániš kosačku" />
+  <meta property="og:description" content="Pozbieraj šišky spod stromu a pusti robotickú kosačku na trávnik." />
+  <meta property="og:type" content="website" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%B2%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="stage">
+    <canvas id="scene" aria-label="Záhradná simulácia zbierania šišiek"></canvas>
+
+    <!-- HUD -->
+    <header class="hud hud--top">
+      <div class="basket" id="basket" aria-live="polite">
+        <span class="basket__icon" aria-hidden="true">🧺</span>
+        <span class="basket__count" id="count">0</span>
+        <span class="basket__label">šišiek</span>
+      </div>
+
+      <div class="meta">
+        <div class="day" id="day">Deň 1</div>
+        <div class="remaining" id="remaining">0 spod stromu</div>
+      </div>
+
+      <button class="iconbtn" id="sound" type="button" aria-pressed="false" title="Zvuk">
+        <span data-on>🔊</span><span data-off hidden>🔈</span>
+      </button>
+    </header>
+
+    <!-- Toast -->
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <!-- Intro -->
+    <div class="intro" id="intro">
+      <div class="intro__card">
+        <p class="intro__eyebrow">kmotrov každodenný rituál</p>
+        <h1 class="intro__title">Vem šišku,<br /><em>zachrániš kosačku</em></h1>
+        <p class="intro__text">
+          Pod ihličnatým stromom je samá šiška. Kým ich pozbieraš,
+          robotická kosačka sa trávnika ani nedotkne. Pozbieraj ich všetky –
+          klikni alebo prejdi prstom po šiškách – a pusti kosačku do práce.
+        </p>
+        <button class="btn" id="start" type="button">Začať zbierať</button>
+        <p class="intro__hint">klik / ťah &nbsp;·&nbsp; mobil aj desktop</p>
+      </div>
+    </div>
+
+    <div class="grain" aria-hidden="true"></div>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>
