@@ -375,13 +375,6 @@ html, body {
 }
 .btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
 .btn:active { transform: translateY(1px) scale(.98); }
-.intro__hint {
-  margin-top: 17px;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  opacity: 0.48;
-}
 
 .over__stats {
   display: flex;
