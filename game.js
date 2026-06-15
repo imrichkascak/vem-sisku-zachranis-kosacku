@@ -79,10 +79,13 @@
 
   // ---------- Cone sprite (pre-rendered) ----------
   let coneSprite = null;
+  let bgCanvas = null;
   const CONE_W = 120, CONE_H = 152;
 
   function buildSprites() {
     coneSprite = makeConeSprite();
+    initDecor();
+    bgCanvas = buildBackground();
   }
 
   function makeConeSprite() {
@@ -166,6 +169,8 @@
     particles: [],
     clouds: [],
     motes: [],
+    tufts: [],
+    birds: [],
     mower: { x: 0, y: 0, vx: 0, vy: 0, face: 1, dir: 1, wheel: 0, blink: 0, bob: 0, shake: 0, cooldown: 0 },
     mowed: 0,
     wind: 0,
@@ -400,6 +405,7 @@
 
     updateClouds(dt);
     updateMotes(dt);
+    updateBirds(dt);
 
     // cones
     for (const c of state.cones) {
@@ -584,16 +590,218 @@
       if (m.x < -4) m.x = W + 4;
     }
   }
+  function updateBirds(dt) {
+    for (const b of state.birds) {
+      b.x += b.v * dt;
+      b.flap += dt * 6;
+      if (b.x - 20 > W) { b.x = -20; b.y = rand(0.12, 0.3) * H; }
+    }
+  }
+
+  // sun position (shared by glow + tree lighting)
+  function sunPos() {
+    return { x: W * 0.22, y: layout.horizon * 0.4, r: Math.min(W, H) * 0.2 };
+  }
+
+  // ---------- Decorative content (positions only; rebuilt on resize) ----------
+  function initDecor() {
+    // swaying grass tufts across the lawn (normalized lawn coords)
+    state.tufts = [];
+    const tuftCount = Math.round(clamp(W / 11, 48, 130));
+    for (let i = 0; i < tuftCount; i++) {
+      const ny = Math.pow(rand(0, 1), 0.85); // mierne viac dole
+      const blades = [];
+      const n = 3 + (Math.random() * 3 | 0);
+      for (let b = 0; b < n; b++) {
+        blades.push({
+          a: rand(-0.5, 0.5),
+          len: rand(0.7, 1.2),
+          curve: rand(-0.4, 0.4),
+          shade: rand(0, 1),
+        });
+      }
+      state.tufts.push({
+        nx: rand(-0.02, 1.02),
+        ny,
+        scale: rand(0.7, 1.25),
+        phase: rand(0, Math.PI * 2),
+        blades,
+      });
+    }
+    // foreground framing grass pinned to the very bottom
+    const fg = Math.round(clamp(W / 26, 16, 60));
+    for (let i = 0; i < fg; i++) {
+      const blades = [];
+      const n = 4 + (Math.random() * 3 | 0);
+      for (let b = 0; b < n; b++) {
+        blades.push({ a: rand(-0.6, 0.6), len: rand(0.8, 1.3), curve: rand(-0.5, 0.5), shade: rand(0, 1) });
+      }
+      state.tufts.push({ nx: rand(-0.02, 1.02), ny: rand(1.0, 1.12), scale: rand(1.6, 2.8), phase: rand(0, Math.PI * 2), blades, fg: true });
+    }
+
+    state.birds = [];
+    for (let i = 0; i < 3; i++) {
+      state.birds.push({ x: rand(0, W), y: rand(0.12, 0.3) * H, v: rand(8, 16), s: rand(0.6, 1), flap: rand(0, Math.PI * 2) });
+    }
+  }
+
+  // ---------- Static background, baked once per resize ----------
+  function buildBackground() {
+    const c = document.createElement("canvas");
+    c.width = Math.round(W * dpr);
+    c.height = Math.round(H * dpr);
+    const g = c.getContext("2d");
+    g.scale(dpr, dpr);
+    const hz = layout.horizon;
+
+    // sky – golden-hour gradient
+    const sky = g.createLinearGradient(0, 0, 0, hz + 40);
+    sky.addColorStop(0, "#8fb7e0");
+    sky.addColorStop(0.4, "#bcd4e4");
+    sky.addColorStop(0.72, "#f2dec2");
+    sky.addColorStop(1, "#fbe6c6");
+    g.fillStyle = sky;
+    g.fillRect(0, 0, W, hz + 40);
+
+    // warm bloom around the sun
+    const s = sunPos();
+    let bloom = g.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 3.2);
+    bloom.addColorStop(0, "rgba(255,240,205,0.7)");
+    bloom.addColorStop(0.5, "rgba(255,226,170,0.22)");
+    bloom.addColorStop(1, "rgba(255,226,170,0)");
+    g.fillStyle = bloom;
+    g.fillRect(0, 0, W, hz + 80);
+
+    // distant hill layers, hazy & desaturated for depth
+    const hills = [
+      { col: "#bcd3b0", off: 0.04, amp: 0.05, freq: 0.004, ph: 0.5 },
+      { col: "#a9cc9b", off: 0.085, amp: 0.07, freq: 0.006, ph: 2.1 },
+      { col: "#8fbf82", off: 0.14, amp: 0.09, freq: 0.008, ph: 4.0 },
+    ];
+    for (const h of hills) {
+      g.fillStyle = h.col;
+      g.beginPath();
+      g.moveTo(0, hz + 4);
+      const base = hz - H * h.off;
+      for (let x = 0; x <= W; x += 24) {
+        const y = base - Math.sin(x * h.freq + h.ph) * H * h.amp - Math.sin(x * h.freq * 2.3) * H * h.amp * 0.3;
+        g.lineTo(x, y);
+      }
+      g.lineTo(W, hz + 4);
+      g.closePath();
+      g.fill();
+    }
+
+    // distant conifer silhouettes on the far hill
+    g.save();
+    g.globalAlpha = 0.5;
+    const farY = hz - H * 0.105;
+    for (let i = 0; i < Math.round(W / 90); i++) {
+      const x = (i + 0.5) * 90 + ((i * 53) % 40) - 20;
+      const th = H * (0.05 + ((i * 37) % 30) / 600);
+      g.fillStyle = i % 2 ? "#7fae74" : "#74a56a";
+      drawMiniConifer(g, x, farY, th);
+    }
+    g.restore();
+
+    // lawn base
+    const L = layout.lawn;
+    const grass = g.createLinearGradient(0, L.y, 0, H);
+    grass.addColorStop(0, "#86c861");
+    grass.addColorStop(0.5, "#67b251");
+    grass.addColorStop(1, "#3f8f3d");
+    g.fillStyle = grass;
+    g.fillRect(L.x, L.y, L.w, L.h);
+
+    // soft uneven patches for organic feel
+    for (let i = 0; i < 26; i++) {
+      const px = rand(0, W), py = L.y + rand(0, L.h);
+      const r = rand(40, 150);
+      const rg = g.createRadialGradient(px, py, 0, px, py, r);
+      const light = Math.random() < 0.5;
+      rg.addColorStop(0, light ? "rgba(180,224,140,0.18)" : "rgba(30,80,35,0.12)");
+      rg.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = rg;
+      g.fillRect(px - r, py - r, r * 2, r * 2);
+    }
+
+    // warm light wash near horizon on the grass
+    const wash = g.createLinearGradient(0, L.y, 0, L.y + L.h * 0.4);
+    wash.addColorStop(0, "rgba(255,236,180,0.28)");
+    wash.addColorStop(1, "rgba(255,236,180,0)");
+    g.fillStyle = wash;
+    g.fillRect(0, L.y, W, L.h * 0.4);
+
+    // fine grass texture
+    g.strokeStyle = "rgba(28,70,28,0.07)";
+    g.lineWidth = 1;
+    for (let i = 0; i < 260; i++) {
+      const ny = (i * 0.618) % 1;
+      const x = (i * 167) % W;
+      const y = L.y + Math.pow(ny, 0.8) * L.h;
+      const len = 3 + ny * 9;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + rand(-1.5, 1.5), y - len);
+      g.stroke();
+    }
+
+    // little flowers / clover scattered
+    for (let i = 0; i < Math.round(W / 24); i++) {
+      const x = rand(0, W);
+      const ny = Math.pow(rand(0.05, 1), 0.9);
+      const y = L.y + ny * L.h;
+      drawFlower(g, x, y, 1.4 + ny * 3.4, ["#fff7e8", "#ffd9e2", "#fff0a8"][(i * 7) % 3]);
+    }
+
+    return c;
+  }
+
+  function drawMiniConifer(g, x, baseY, h) {
+    const w = h * 0.5;
+    g.beginPath();
+    g.moveTo(x, baseY - h);
+    g.lineTo(x - w * 0.5, baseY - h * 0.45);
+    g.lineTo(x - w * 0.28, baseY - h * 0.45);
+    g.lineTo(x - w * 0.5, baseY);
+    g.lineTo(x + w * 0.5, baseY);
+    g.lineTo(x + w * 0.28, baseY - h * 0.45);
+    g.lineTo(x + w * 0.5, baseY - h * 0.45);
+    g.closePath();
+    g.fill();
+  }
+
+  function drawFlower(g, x, y, r, col) {
+    g.save();
+    g.translate(x, y);
+    g.fillStyle = col;
+    for (let p = 0; p < 5; p++) {
+      const a = (p / 5) * Math.PI * 2;
+      g.beginPath();
+      g.ellipse(Math.cos(a) * r, Math.sin(a) * r, r * 0.7, r * 0.45, a, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = "#f2b441";
+    g.beginPath();
+    g.arc(0, 0, r * 0.5, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
 
   // ---------- Render ----------
   function render() {
     ctx.clearRect(0, 0, W, H);
-    drawSky();
-    drawSun();
+    if (bgCanvas) ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+    drawSunGlow();
     drawClouds();
-    drawHills();
-    drawLawn();
-    drawTree(layout.tree2, 0.8);
+    drawBirds();
+    drawMowedOverlay();
+
+    // mid-ground grass behind the cones
+    drawGrass(false);
+
+    drawTree(layout.tree2, 0.82);
     drawTree(layout.tree, 1);
 
     // cones sorted by depth (painter)
@@ -608,46 +816,75 @@
     for (const c of state.cones) if (c.state === "flying") drawCone(c, true);
 
     drawParticles();
+
+    // tall foreground grass frames the scene
+    drawGrass(true);
+
+    drawLightLeak();
     drawVignette();
   }
 
-  function drawSky() {
-    const g = ctx.createLinearGradient(0, 0, 0, layout.horizon + 60);
-    g.addColorStop(0, "#aee0f2");
-    g.addColorStop(0.45, "#d7eef0");
-    g.addColorStop(1, "#fbeccb");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, layout.horizon + 60);
-  }
+  function drawSunGlow() {
+    const s = sunPos();
+    // volumetric rays
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.translate(s.x, s.y);
+    ctx.rotate(state.time * 0.012);
+    const rays = 12;
+    for (let i = 0; i < rays; i++) {
+      ctx.rotate((Math.PI * 2) / rays);
+      const w = 0.06 + 0.03 * Math.sin(state.time * 0.7 + i);
+      const len = s.r * (3.2 + 0.4 * Math.sin(state.time * 0.5 + i * 1.7));
+      const grd = ctx.createLinearGradient(0, 0, len, 0);
+      grd.addColorStop(0, "rgba(255,240,200,0.10)");
+      grd.addColorStop(1, "rgba(255,240,200,0)");
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(len, -len * w);
+      ctx.lineTo(len, len * w);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
 
-  function drawSun() {
-    const sx = W * 0.24, sy = layout.horizon * 0.42;
-    const r = Math.min(W, H) * 0.18;
-    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
-    g.addColorStop(0, "rgba(255,243,205,0.95)");
-    g.addColorStop(0.4, "rgba(255,231,168,0.55)");
-    g.addColorStop(1, "rgba(255,231,168,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, layout.horizon + 80);
+    // sun disc with soft halo
+    const halo = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
+    halo.addColorStop(0, "rgba(255,250,232,0.95)");
+    halo.addColorStop(0.35, "rgba(255,238,190,0.5)");
+    halo.addColorStop(1, "rgba(255,238,190,0)");
+    ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(sx, sy, r * 0.34, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,248,225,0.9)";
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,252,240,0.95)";
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r * 0.3, 0, Math.PI * 2);
     ctx.fill();
   }
 
   function drawClouds() {
     for (const c of state.clouds) {
       ctx.save();
-      ctx.globalAlpha = c.o;
-      ctx.fillStyle = "#ffffff";
       ctx.translate(c.x, c.y);
       ctx.scale(c.s, c.s);
-      blob(0, 0, 40, 22);
-      blob(34, 6, 30, 18);
-      blob(-32, 8, 28, 16);
-      blob(8, -12, 26, 18);
+      // soft warm underside
+      ctx.globalAlpha = c.o * 0.5;
+      ctx.fillStyle = "#e9c9a3";
+      cloudShape(0, 4);
+      // bright top
+      ctx.globalAlpha = c.o;
+      ctx.fillStyle = "#fffaf2";
+      cloudShape(0, 0);
       ctx.restore();
     }
+  }
+  function cloudShape(ox, oy) {
+    blob(ox + 0, oy + 0, 42, 22);
+    blob(ox + 36, oy + 6, 30, 18);
+    blob(ox - 34, oy + 8, 28, 16);
+    blob(ox + 8, oy - 13, 28, 19);
   }
   function blob(x, y, rx, ry) {
     ctx.beginPath();
@@ -655,112 +892,163 @@
     ctx.fill();
   }
 
-  function drawHills() {
+  function drawBirds() {
     ctx.save();
-    ctx.fillStyle = "#a9d79a";
-    ctx.beginPath();
-    ctx.moveTo(0, layout.horizon);
-    const baseY = layout.horizon;
-    for (let x = 0; x <= W; x += 40) {
-      const y = baseY - 26 - Math.sin(x * 0.006 + 1) * 22 - Math.sin(x * 0.013) * 10;
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(W, layout.horizon);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function drawLawn() {
-    const L = layout.lawn;
-    const g = ctx.createLinearGradient(0, L.y, 0, H);
-    g.addColorStop(0, "#7cc05f");
-    g.addColorStop(1, "#4f9c47");
-    ctx.fillStyle = g;
-    ctx.fillRect(L.x, L.y, L.w, L.h);
-
-    // subtle grass texture dashes
-    ctx.save();
-    ctx.strokeStyle = "rgba(40,90,40,0.06)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 90; i++) {
-      const ny = (i * 113 % 100) / 100;
-      const x = ((i * 197) % W);
-      const y = L.y + ny * L.h;
-      const len = 4 + ny * 8;
+    ctx.strokeStyle = "rgba(70,86,98,0.5)";
+    ctx.lineWidth = 1.6;
+    for (const b of state.birds) {
+      const w = 7 * b.s;
+      const flap = Math.sin(b.flap) * 3 * b.s;
       ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + 2, y - len);
+      ctx.moveTo(b.x - w, b.y);
+      ctx.quadraticCurveTo(b.x - w * 0.4, b.y - flap - 2, b.x, b.y);
+      ctx.quadraticCurveTo(b.x + w * 0.4, b.y - flap - 2, b.x + w, b.y);
       ctx.stroke();
     }
     ctx.restore();
+  }
 
-    // mowed region overlay
-    if (state.mowed > 0) {
-      const mw = L.w * state.mowed;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(L.x, L.y, mw, L.h);
-      ctx.clip();
-      const mg = ctx.createLinearGradient(0, L.y, 0, H);
-      mg.addColorStop(0, "#8fce6e");
-      mg.addColorStop(1, "#63b257");
-      ctx.fillStyle = mg;
-      ctx.fillRect(L.x, L.y, mw, L.h);
-      // mow stripes
-      ctx.globalAlpha = 0.5;
-      const stripe = Math.max(26, L.h / 9);
-      for (let y = L.y, i = 0; y < H; y += stripe, i++) {
-        ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.10)" : "rgba(30,80,30,0.06)";
-        ctx.fillRect(L.x, y, mw, stripe);
-      }
-      ctx.restore();
+  function drawMowedOverlay() {
+    if (state.mowed <= 0) return;
+    const L = layout.lawn;
+    const mw = L.w * state.mowed;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(L.x, L.y, mw, L.h);
+    ctx.clip();
+    const mg = ctx.createLinearGradient(0, L.y, 0, H);
+    mg.addColorStop(0, "#9bd673");
+    mg.addColorStop(1, "#5aa64f");
+    ctx.fillStyle = mg;
+    ctx.fillRect(L.x, L.y, mw, L.h);
+    ctx.globalAlpha = 0.45;
+    const stripe = Math.max(26, L.h / 10);
+    for (let y = L.y, i = 0; y < H; y += stripe, i++) {
+      ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.12)" : "rgba(25,70,28,0.07)";
+      ctx.fillRect(L.x, y, mw, stripe);
     }
+    // freshly-cut leading edge
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = "rgba(255,255,255,0.25)";
+    ctx.fillRect(mw - 3, L.y, 4, L.h);
+    ctx.restore();
+  }
+
+  function drawGrass(foreground) {
+    const L = layout.lawn;
+    for (const t of state.tufts) {
+      if (!!t.fg !== foreground) continue;
+      const x = L.x + t.nx * L.w;
+      const y = L.y + t.ny * L.h;
+      const depth = clamp(t.ny, 0, 1);
+      const sc = t.scale * lerp(0.6, 1.25, depth) * (Math.min(W, H) / 720);
+      const sway = (Math.sin(state.time * 1.4 + t.phase) * 0.12) + state.wind * 0.18;
+      drawTuft(x, y, sc, sway, t.blades, depth);
+    }
+  }
+  function drawTuft(x, y, sc, sway, blades, depth) {
+    ctx.save();
+    ctx.translate(x, y);
+    for (const bl of blades) {
+      const len = 16 * bl.len * sc;
+      const baseA = bl.a + sway;
+      const tipX = Math.sin(baseA) * len + (bl.curve + sway) * len * 0.5;
+      const tipY = -Math.cos(baseA) * len;
+      const midX = Math.sin(baseA) * len * 0.5 + (bl.curve + sway) * len * 0.3;
+      const midY = -Math.cos(baseA) * len * 0.5;
+      const wBase = 2.4 * sc;
+      const dark = mix("#3c7d36", "#2c5f2c", bl.shade);
+      const lite = mix("#7cc35a", "#5aa84a", bl.shade);
+      const grd = ctx.createLinearGradient(0, 0, tipX, tipY);
+      grd.addColorStop(0, dark);
+      grd.addColorStop(1, lite);
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.moveTo(-wBase / 2, 0);
+      ctx.quadraticCurveTo(midX - wBase * 0.2, midY, tipX, tipY);
+      ctx.quadraticCurveTo(midX + wBase * 0.2, midY, wBase / 2, 0);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   function drawTree(t, alpha) {
     if (!t.h) return;
     ctx.save();
     ctx.globalAlpha = alpha;
-    const sway = Math.sin(state.time * 0.8) * (4 + state.wind * 8);
+    const sway = Math.sin(state.time * 0.8 + t.x * 0.01) * (3 + state.wind * 7);
+    const sun = sunPos();
+    const lightDir = Math.sign(sun.x - t.x) || -1; // svetlo z ľavej (slnko)
 
-    // trunk
-    const trunkH = t.h * 0.14;
-    const trunkW = t.h * 0.05;
-    ctx.fillStyle = "#6b4a2f";
+    // ground contact shadow
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.18;
+    ctx.fillStyle = "#15331a";
+    ctx.beginPath();
+    ctx.ellipse(t.x, t.y + 4, t.h * 0.22, t.h * 0.04, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // trunk with shading
+    const trunkH = t.h * 0.15;
+    const trunkW = t.h * 0.055;
+    const tg = ctx.createLinearGradient(t.x - trunkW / 2, 0, t.x + trunkW / 2, 0);
+    tg.addColorStop(0, "#7a5736");
+    tg.addColorStop(0.5, "#5e4026");
+    tg.addColorStop(1, "#46301d");
+    ctx.fillStyle = tg;
     ctx.beginPath();
     ctx.moveTo(t.x - trunkW / 2, t.y);
     ctx.lineTo(t.x + trunkW / 2, t.y);
-    ctx.lineTo(t.x + trunkW * 0.35, t.y - trunkH);
-    ctx.lineTo(t.x - trunkW * 0.35, t.y - trunkH);
+    ctx.lineTo(t.x + trunkW * 0.32, t.y - trunkH);
+    ctx.lineTo(t.x - trunkW * 0.32, t.y - trunkH);
     ctx.closePath();
     ctx.fill();
 
-    // foliage tiers
-    const tiers = 4;
-    const top = t.y - trunkH - t.h * 0.82;
-    const bottom = t.y - trunkH;
-    const widest = t.h * 0.34;
+    // foliage tiers with jagged bottoms + rim light
+    const tiers = 6;
+    const top = t.y - trunkH - t.h * 0.9;
+    const bottom = t.y - trunkH + t.h * 0.02;
+    const widest = t.h * 0.38;
     for (let i = tiers - 1; i >= 0; i--) {
       const f = i / (tiers - 1); // 0 bottom .. 1 top
       const cy = lerp(bottom, top, f);
-      const ny = lerp(bottom, top, (i + 1) / (tiers - 1));
-      const halfW = widest * (1 - f * 0.62);
-      const tierSway = sway * (0.3 + f * 0.7);
+      const nextY = lerp(bottom, top, Math.min(1, (i + 1.15) / (tiers - 1)));
+      const halfW = widest * (1 - f * 0.66) * (0.55 + 0.45 * (1 - f * 0.2));
+      const tierSway = sway * (0.25 + f * 0.85);
       const tipX = t.x + tierSway;
-      const dark = mix("#2f6b34", "#3f7d3d", f);
-      const lite = mix("#4f9447", "#73b85f", f);
+      const dark = mix("#214d24", "#2f6634", f);
+      const lite = mix("#3f8a3e", "#6fb45a", f);
       const g = ctx.createLinearGradient(t.x - halfW, 0, t.x + halfW, 0);
-      g.addColorStop(0, dark);
-      g.addColorStop(0.5, lite);
-      g.addColorStop(1, dark);
+      if (lightDir < 0) { g.addColorStop(0, lite); g.addColorStop(0.6, mix(dark, lite, 0.5)); g.addColorStop(1, dark); }
+      else { g.addColorStop(0, dark); g.addColorStop(0.4, mix(dark, lite, 0.5)); g.addColorStop(1, lite); }
       ctx.fillStyle = g;
+
+      // jagged skirt
+      const baseY = cy + t.h * 0.05;
+      const segs = 6;
       ctx.beginPath();
-      ctx.moveTo(tipX, ny);
-      ctx.lineTo(t.x - halfW, cy + 6);
-      ctx.quadraticCurveTo(t.x, cy - 4, t.x + halfW, cy + 6);
+      ctx.moveTo(tipX, nextY);
+      for (let sIdx = 0; sIdx <= segs; sIdx++) {
+        const tt = sIdx / segs;
+        const ex = lerp(t.x - halfW, t.x + halfW, tt) + tierSway * (1 - Math.abs(tt - 0.5) * 2) * 0.4;
+        const notch = (sIdx % 2 === 0) ? 0 : -t.h * 0.03;
+        ctx.lineTo(ex, baseY + notch);
+      }
       ctx.closePath();
       ctx.fill();
+
+      // sun-side rim highlight
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.5;
+      ctx.strokeStyle = "rgba(220,245,180,0.5)";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(tipX, nextY);
+      ctx.lineTo(t.x + lightDir * halfW, baseY);
+      ctx.stroke();
+      ctx.restore();
     }
     ctx.restore();
   }
@@ -803,13 +1091,16 @@
     const scale = mowerSize();
     const bw = 92 * scale, bh = 56 * scale;
     const broken = state.phase === "gameover";
+    const moving = state.phase === "collecting" && m.cooldown <= 0;
 
-    // shadow stays flat on the ground
+    // soft drop shadow on the ground
     ctx.save();
-    ctx.globalAlpha = 0.2;
-    ctx.fillStyle = "#1f3a18";
+    const sg = ctx.createRadialGradient(m.x, m.y + bh * 0.62, 0, m.x, m.y + bh * 0.62, bw * 0.62);
+    sg.addColorStop(0, "rgba(20,45,20,0.32)");
+    sg.addColorStop(1, "rgba(20,45,20,0)");
+    ctx.fillStyle = sg;
     ctx.beginPath();
-    ctx.ellipse(m.x, m.y + bh * 0.6, bw * 0.6, bh * 0.22, 0, 0, Math.PI * 2);
+    ctx.ellipse(m.x, m.y + bh * 0.62, bw * 0.62, bh * 0.26, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
@@ -819,63 +1110,137 @@
     if (broken) ctx.rotate(0.16);
     ctx.scale(m.face, 1);
 
-    const bodyTop = broken ? "#cfd6d2" : "#7fe0c2";
-    const bodyBot = broken ? "#9aa6a0" : "#3fae8e";
-
-    // wheels
-    ctx.fillStyle = "#2c3530";
-    roundRect(-bw * 0.42, bh * 0.18, bw * 0.22, bh * 0.34, 6 * scale);
-    ctx.fill();
-    roundRect(bw * 0.2, bh * 0.18, bw * 0.22, bh * 0.34, 6 * scale);
-    ctx.fill();
+    // wheels with spin
+    for (const wx of [-bw * 0.31, bw * 0.31]) {
+      ctx.save();
+      ctx.translate(wx, bh * 0.42);
+      ctx.fillStyle = "#222a27";
+      ctx.beginPath();
+      ctx.arc(0, 0, bh * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.rotate(m.wheel);
+      ctx.strokeStyle = "rgba(150,160,156,0.6)";
+      ctx.lineWidth = 1.6 * scale;
+      for (let s = 0; s < 4; s++) {
+        ctx.rotate(Math.PI / 4);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, bh * 0.16);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
     // body
-    const g = ctx.createLinearGradient(0, -bh * 0.5, 0, bh * 0.5);
+    const bodyTop = broken ? "#dfe5e1" : "#86e7cb";
+    const bodyMid = broken ? "#b9c2bc" : "#48b793";
+    const bodyBot = broken ? "#8b968f" : "#2f9a78";
+    const g = ctx.createLinearGradient(0, -bh * 0.55, 0, bh * 0.55);
     g.addColorStop(0, bodyTop);
+    g.addColorStop(0.55, bodyMid);
     g.addColorStop(1, bodyBot);
     ctx.fillStyle = g;
-    roundRect(-bw / 2, -bh / 2, bw, bh, 16 * scale);
+    roundRect(-bw / 2, -bh / 2, bw, bh, 18 * scale);
     ctx.fill();
 
+    // glossy top highlight
+    ctx.save();
+    roundRect(-bw / 2, -bh / 2, bw, bh, 18 * scale);
+    ctx.clip();
+    const gloss = ctx.createLinearGradient(0, -bh * 0.5, 0, 0);
+    gloss.addColorStop(0, "rgba(255,255,255,0.45)");
+    gloss.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = gloss;
+    ctx.fillRect(-bw / 2, -bh / 2, bw, bh * 0.5);
+    // side ambient shade
+    const shade = ctx.createLinearGradient(-bw / 2, 0, bw / 2, 0);
+    shade.addColorStop(0, "rgba(0,0,0,0.12)");
+    shade.addColorStop(0.5, "rgba(0,0,0,0)");
+    shade.addColorStop(1, "rgba(0,0,0,0.14)");
+    ctx.fillStyle = shade;
+    ctx.fillRect(-bw / 2, -bh / 2, bw, bh);
+    ctx.restore();
+
+    // panel line
+    ctx.strokeStyle = "rgba(20,50,40,0.18)";
+    ctx.lineWidth = 1.4 * scale;
+    ctx.beginPath();
+    ctx.moveTo(-bw * 0.4, bh * 0.06);
+    ctx.lineTo(bw * 0.4, bh * 0.06);
+    ctx.stroke();
+
     // top dome
-    ctx.fillStyle = broken ? "#e6ebe7" : "#9defcf";
-    roundRect(-bw * 0.32, -bh * 0.62, bw * 0.64, bh * 0.4, 12 * scale);
+    ctx.fillStyle = broken ? "#eef2ef" : "#a6f0d6";
+    roundRect(-bw * 0.3, -bh * 0.64, bw * 0.6, bh * 0.42, 13 * scale);
+    ctx.fill();
+
+    // status LED
+    ctx.fillStyle = broken ? "#c0473a" : (moving ? "#ffcf3a" : "#7ff0a0");
+    ctx.beginPath();
+    ctx.arc(bw * 0.18, -bh * 0.46, 3 * scale, 0, Math.PI * 2);
     ctx.fill();
 
     // visor / eyes
-    ctx.fillStyle = "#1d2b28";
-    roundRect(-bw * 0.26, -bh * 0.16, bw * 0.52, bh * 0.32, 9 * scale);
+    ctx.fillStyle = "#16241f";
+    roundRect(-bw * 0.27, -bh * 0.18, bw * 0.54, bh * 0.34, 10 * scale);
     ctx.fill();
+    // visor reflection
+    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    roundRect(-bw * 0.24, -bh * 0.15, bw * 0.48, bh * 0.1, 6 * scale);
+    ctx.fill();
+
     const blinkOpen = m.blink > 0.12 && !broken;
     if (broken) {
-      // X_X
-      ctx.strokeStyle = "#e8743b";
-      ctx.lineWidth = 2.4 * scale;
-      const ex = bw * 0.1, ey = 0, s = 4 * scale;
+      ctx.strokeStyle = "#ff8a5a";
+      ctx.lineWidth = 2.6 * scale;
+      ctx.lineCap = "round";
+      const ex = bw * 0.11, s = 4.5 * scale;
       for (const cx of [-ex, ex]) {
         ctx.beginPath();
-        ctx.moveTo(cx - s, ey - s); ctx.lineTo(cx + s, ey + s);
-        ctx.moveTo(cx + s, ey - s); ctx.lineTo(cx - s, ey + s);
+        ctx.moveTo(cx - s, -s); ctx.lineTo(cx + s, s);
+        ctx.moveTo(cx + s, -s); ctx.lineTo(cx - s, s);
         ctx.stroke();
       }
     } else if (blinkOpen) {
-      ctx.fillStyle = "#aef7ff";
+      for (const cx of [-bw * 0.11, bw * 0.11]) {
+        const eg = ctx.createRadialGradient(cx, 0, 0, cx, 0, 7 * scale);
+        eg.addColorStop(0, "#d8feff");
+        eg.addColorStop(0.5, "#6fe0ff");
+        eg.addColorStop(1, "rgba(111,224,255,0)");
+        ctx.fillStyle = eg;
+        ctx.beginPath();
+        ctx.arc(cx, 0, 7 * scale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#0a1f1c";
+        ctx.beginPath();
+        ctx.arc(cx, 0, 2.3 * scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // blink line
+      ctx.strokeStyle = "#6fe0ff";
+      ctx.lineWidth = 2 * scale;
       ctx.beginPath();
-      ctx.arc(-bw * 0.1, 0, 4.5 * scale, 0, Math.PI * 2);
-      ctx.arc(bw * 0.1, 0, 4.5 * scale, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(-bw * 0.16, 0); ctx.lineTo(-bw * 0.06, 0);
+      ctx.moveTo(bw * 0.06, 0); ctx.lineTo(bw * 0.16, 0);
+      ctx.stroke();
     }
 
     // antenna
-    ctx.strokeStyle = "#2c3530";
+    ctx.strokeStyle = "#26302c";
     ctx.lineWidth = 2.4 * scale;
+    ctx.lineCap = "round";
+    const antWobble = Math.sin(state.time * 8) * 0.08 * (moving ? 1 : 0.3);
     ctx.beginPath();
-    ctx.moveTo(bw * 0.34, -bh * 0.42);
-    ctx.lineTo(bw * 0.42, -bh * 0.82);
+    ctx.moveTo(bw * 0.32, -bh * 0.46);
+    ctx.quadraticCurveTo(bw * 0.42, -bh * 0.74, bw * (0.42 + antWobble), -bh * 0.9);
     ctx.stroke();
-    ctx.fillStyle = "#e8743b";
+    const tip = ctx.createRadialGradient(bw * (0.42 + antWobble), -bh * 0.94, 0, bw * (0.42 + antWobble), -bh * 0.94, 5 * scale);
+    tip.addColorStop(0, "#ffd9a0");
+    tip.addColorStop(1, "#e8743b");
+    ctx.fillStyle = tip;
     ctx.beginPath();
-    ctx.arc(bw * 0.42, -bh * 0.86, 4 * scale, 0, Math.PI * 2);
+    ctx.arc(bw * (0.42 + antWobble), -bh * 0.94, 4.2 * scale, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -914,10 +1279,31 @@
     }
   }
 
+  function drawLightLeak() {
+    // warm glow bleeding in from the sun's corner
+    const s = sunPos();
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, Math.max(W, H) * 0.9);
+    g.addColorStop(0, "rgba(255,224,160,0.16)");
+    g.addColorStop(0.4, "rgba(255,210,150,0.05)");
+    g.addColorStop(1, "rgba(255,210,150,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
   function drawVignette() {
-    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.4, W / 2, H / 2, Math.max(W, H) * 0.75);
+    // cohesive warm-to-cool color grade
+    const grade = ctx.createLinearGradient(0, 0, W, H);
+    grade.addColorStop(0, "rgba(255,196,120,0.06)");
+    grade.addColorStop(1, "rgba(20,40,70,0.10)");
+    ctx.fillStyle = grade;
+    ctx.fillRect(0, 0, W, H);
+
+    const g = ctx.createRadialGradient(W / 2, H * 0.46, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.8);
     g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(1, "rgba(20,40,20,0.18)");
+    g.addColorStop(1, "rgba(18,34,22,0.26)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
   }
